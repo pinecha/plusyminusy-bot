@@ -1,0 +1,9 @@
+{
+  "name": "plusy-minus-bot",
+  "version": "1.0.0",
+  "main": "index.js",
+  "type": "module",
+  "dependencies": {
+    "discord.js": "^14.11.0"
+  }
+}
