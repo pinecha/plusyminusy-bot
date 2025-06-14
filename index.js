@@ -49,6 +49,12 @@ const commands = [
     .addUserOption(opt => opt.setName('uzytkownik').setDescription('Użytkownik').setRequired(true))
     .addIntegerOption(opt => opt.setName('ilosc').setDescription('Ilość minusów').setRequired(true)),
 
+new SlashCommandBuilder()
+    .setName('usunminus')
+    .setDescription('Usuwa minusy użytkownikowi')
+    .addUserOption(opt => opt.setName('uzytkownik').setDescription('Użytkownik').setRequired(true))
+    .addIntegerOption(opt => opt.setName('ilosc').setDescription('Ilość minusów').setRequired(true)),
+
   new SlashCommandBuilder()
     .setName('mojewyniki')
     .setDescription('Pokazuje twoje plusy i minusy'),
@@ -75,6 +81,13 @@ client.on('interactionCreate', async interaction => {
     const count = interaction.options.getInteger('ilosc');
     addPoints(user.id, 'plusy', count);
     await interaction.reply(`${user.username} dostał(a) ${count} plusa(ów)!`);
+  }
+
+if (commandName === 'usunminus') {
+    const user = interaction.options.getUser('uzytkownik');
+    const count = interaction.options.getInteger('ilosc');
+    removePoints(user.id, 'minusy', count);
+    await interaction.reply(`${user.username} stracił(a) ${count} plusa(ów)!`);
   }
 
   if (commandName === 'dodajminus') {
