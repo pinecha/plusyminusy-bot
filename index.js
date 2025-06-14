@@ -1,4 +1,4 @@
-import { Client, GatewayIntentBits, SlashCommandBuilder, Routes } from 'discord.js';
+import { Client, GatewayIntentBits, SlashCommandBuilder, Routes, PermissionFlagsBits } from 'discord.js';
 import { REST } from '@discordjs/rest';
 import fs from 'fs';
 
@@ -86,8 +86,17 @@ client.on('ready', () => {
 
 client.on('interactionCreate', async interaction => {
   if (!interaction.isChatInputCommand()) return;
-
   const { commandName } = interaction;
+
+  // Funkcja pomocnicza do sprawdzania uprawnień admina
+  const isAdmin = interaction.memberPermissions?.has(PermissionFlagsBits.Administrator);
+
+  // Komendy tylko dla administratorów
+  if (['dodajplus', 'dodajminus', 'usunplus', 'usunminus'].includes(commandName)) {
+    if (!isAdmin) {
+      return interaction.reply({ content: '⛔ Nie masz uprawnień do użycia tej komendy (wymagany Administrator).', ephemeral: true });
+    }
+  }
 
   if (commandName === 'dodajplus') {
     const user = interaction.options.getUser('uzytkownik');
