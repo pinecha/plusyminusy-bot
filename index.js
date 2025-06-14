@@ -1,41 +1,7 @@
-import { Client, GatewayIntentBits, SlashCommandBuilder, Routes } from 'discord.js';
-import { REST } from '@discordjs/rest';
-import fs from 'fs';
+import { Client, GatewayIntentBits, SlashCommandBuilder, Routes, EmbedBuilder } from 'discord.js';
+// ... reszta importów i kodu bez zmian
 
-const TOKEN = process.env.TOKEN;
-const CLIENT_ID = process.env.CLIENT_ID;
-const GUILD_ID = process.env.GUILD_ID;
-
-const client = new Client({ intents: [GatewayIntentBits.Guilds] });
-const dbPath = './data.json';
-
-function loadData() {
-  if (!fs.existsSync(dbPath)) return {};
-  return JSON.parse(fs.readFileSync(dbPath, 'utf8'));
-}
-
-function saveData(data) {
-  fs.writeFileSync(dbPath, JSON.stringify(data, null, 2));
-}
-
-function addPoints(userId, type, count) {
-  const data = loadData();
-  if (!data[userId]) data[userId] = { plusy: 0, minusy: 0 };
-  data[userId][type] += count;
-  saveData(data);
-}
-
-function getUserPoints(userId) {
-  const data = loadData();
-  return data[userId] || { plusy: 0, minusy: 0 };
-}
-
-function getRanking() {
-  const data = loadData();
-  return Object.entries(data).sort((a, b) => (b[1].plusy - b[1].minusy) - (a[1].plusy - a[1].minusy));
-}
-
-// Komendy
+// Dodaj dwie nowe komendy do tablicy commands:
 const commands = [
   new SlashCommandBuilder()
     .setName('dodajplus')
@@ -50,6 +16,18 @@ const commands = [
     .addIntegerOption(opt => opt.setName('ilosc').setDescription('Ilość minusów').setRequired(true)),
 
   new SlashCommandBuilder()
+    .setName('usunplus')
+    .setDescription('Usuwa plusy użytkownikowi')
+    .addUserOption(opt => opt.setName('uzytkownik').setDescription('Użytkownik').setRequired(true))
+    .addIntegerOption(opt => opt.setName('ilosc').setDescription('Ilość plusów do usunięcia').setRequired(true)),
+
+  new SlashCommandBuilder()
+    .setName('usunminus')
+    .setDescription('Usuwa minusy użytkownikowi')
+    .addUserOption(opt => opt.setName('uzytkownik').setDescription('Użytkownik').setRequired(true))
+    .addIntegerOption(opt => opt.setName('ilosc').setDescription('Ilość minusów do usunięcia').setRequired(true)),
+
+  new SlashCommandBuilder()
     .setName('mojewyniki')
     .setDescription('Pokazuje twoje plusy i minusy'),
 
@@ -58,13 +36,15 @@ const commands = [
     .setDescription('Pokazuje ranking wszystkich')
 ].map(cmd => cmd.toJSON());
 
-const rest = new REST({ version: '10' }).setToken(TOKEN);
-await rest.put(Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID), { body: commands });
+// Funkcja do usuwania punktów (odejmowania), która nie pozwoli zejść poniżej 0:
+function removePoints(userId, type, count) {
+  const data = loadData();
+  if (!data[userId]) data[userId] = { plusy: 0, minusy: 0 };
+  data[userId][type] = Math.max(0, data[userId][type] - count);
+  saveData(data);
+}
 
-client.on('ready', () => {
-  console.log(`✅ Bot zalogowany jako ${client.user.tag}`);
-});
-
+// W event handlerze interactionCreate dodaj obsługę nowych komend i ładny embed dla /mojewyniki:
 client.on('interactionCreate', async interaction => {
   if (!interaction.isChatInputCommand()) return;
 
@@ -77,20 +57,45 @@ client.on('interactionCreate', async interaction => {
     await interaction.reply(`${user.username} dostał(a) ${count} plusa(ów)!`);
   }
 
-  if (commandName === 'dodajminus') {
+  else if (commandName === 'dodajminus') {
     const user = interaction.options.getUser('uzytkownik');
     const count = interaction.options.getInteger('ilosc');
     addPoints(user.id, 'minusy', count);
     await interaction.reply(`${user.username} dostał(a) ${count} minusa(ów)!`);
   }
 
-  if (commandName === 'mojewyniki') {
-    const userId = interaction.user.id;
-    const { plusy, minusy } = getUserPoints(userId);
-    await interaction.reply(`Masz ${plusy} plusów i ${minusy} minusów.`);
+  else if (commandName === 'usunplus') {
+    const user = interaction.options.getUser('uzytkownik');
+    const count = interaction.options.getInteger('ilosc');
+    removePoints(user.id, 'plusy', count);
+    await interaction.reply(`Usunięto ${count} plusa(ów) użytkownikowi ${user.username}.`);
   }
 
-  if (commandName === 'ranking') {
+  else if (commandName === 'usunminus') {
+    const user = interaction.options.getUser('uzytkownik');
+    const count = interaction.options.getInteger('ilosc');
+    removePoints(user.id, 'minusy', count);
+    await interaction.reply(`Usunięto ${count} minusa(ów) użytkownikowi ${user.username}.`);
+  }
+
+  else if (commandName === 'mojewyniki') {
+    const userId = interaction.user.id;
+    const { plusy, minusy } = getUserPoints(userId);
+    const embed = new EmbedBuilder()
+      .setColor('#00FF00')
+      .setTitle(`Wyniki użytkownika ${interaction.user.username}`)
+      .addFields(
+        { name: '➕ Plusy', value: plusy.toString(), inline: true },
+        { name: '➖ Minusy', value: minusy.toString(), inline: true },
+        { name: '💯 Różnica', value: (plusy - minusy).toString(), inline: true }
+      )
+      .setFooter({ text: 'Twoje plusy i minusy' })
+      .setTimestamp();
+
+    await interaction.reply({ embeds: [embed] });
+  }
+
+  else if (commandName === 'ranking') {
     const ranking = getRanking();
     let msg = '**📊 Ranking użytkowników:**\n';
     for (let [id, data] of ranking) {
@@ -100,5 +105,3 @@ client.on('interactionCreate', async interaction => {
     await interaction.reply(msg);
   }
 });
-
-client.login(TOKEN);
