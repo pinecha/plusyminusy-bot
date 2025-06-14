@@ -25,6 +25,13 @@ function addPoints(userId, type, count) {
   saveData(data);
 }
 
+function removePoints(userId, type, count) {
+  const data = loadData();
+  if (!data[userId]) data[userId] = { plusy: 0, minusy: 0 };
+  data[userId][type] = Math.max(0, data[userId][type] - count);
+  saveData(data);
+}
+
 function getUserPoints(userId) {
   const data = loadData();
   return data[userId] || { plusy: 0, minusy: 0 };
@@ -49,11 +56,17 @@ const commands = [
     .addUserOption(opt => opt.setName('uzytkownik').setDescription('Użytkownik').setRequired(true))
     .addIntegerOption(opt => opt.setName('ilosc').setDescription('Ilość minusów').setRequired(true)),
 
-new SlashCommandBuilder()
+  new SlashCommandBuilder()
+    .setName('usunplus')
+    .setDescription('Usuwa plusy użytkownikowi')
+    .addUserOption(opt => opt.setName('uzytkownik').setDescription('Użytkownik').setRequired(true))
+    .addIntegerOption(opt => opt.setName('ilosc').setDescription('Ilość plusów do usunięcia').setRequired(true)),
+
+  new SlashCommandBuilder()
     .setName('usunminus')
     .setDescription('Usuwa minusy użytkownikowi')
     .addUserOption(opt => opt.setName('uzytkownik').setDescription('Użytkownik').setRequired(true))
-    .addIntegerOption(opt => opt.setName('ilosc').setDescription('Ilość minusów').setRequired(true)),
+    .addIntegerOption(opt => opt.setName('ilosc').setDescription('Ilość minusów do usunięcia').setRequired(true)),
 
   new SlashCommandBuilder()
     .setName('mojewyniki')
@@ -83,13 +96,6 @@ client.on('interactionCreate', async interaction => {
     await interaction.reply(`${user.username} dostał(a) ${count} plusa(ów)!`);
   }
 
-if (commandName === 'usunminus') {
-    const user = interaction.options.getUser('uzytkownik');
-    const count = interaction.options.getInteger('ilosc');
-    removePoints(user.id, 'minusy', count);
-    await interaction.reply(`${user.username} stracił(a) ${count} plusa(ów)!`);
-  }
-
   if (commandName === 'dodajminus') {
     const user = interaction.options.getUser('uzytkownik');
     const count = interaction.options.getInteger('ilosc');
@@ -97,18 +103,36 @@ if (commandName === 'usunminus') {
     await interaction.reply(`${user.username} dostał(a) ${count} minusa(ów)!`);
   }
 
+  if (commandName === 'usunplus') {
+    const user = interaction.options.getUser('uzytkownik');
+    const count = interaction.options.getInteger('ilosc');
+    removePoints(user.id, 'plusy', count);
+    await interaction.reply(`${user.username} miał(a) usunięte ${count} plusa(ów)!`);
+  }
+
+  if (commandName === 'usunminus') {
+    const user = interaction.options.getUser('uzytkownik');
+    const count = interaction.options.getInteger('ilosc');
+    removePoints(user.id, 'minusy', count);
+    await interaction.reply(`${user.username} miał(a) usunięte ${count} minusa(ów)!`);
+  }
+
   if (commandName === 'mojewyniki') {
     const userId = interaction.user.id;
     const { plusy, minusy } = getUserPoints(userId);
-    await interaction.reply(`Masz ${plusy} plusów i ${minusy} minusów.`);
+    await interaction.reply(`Masz ➕ ${plusy} plusów i ➖ ${minusy} minusów.`);
   }
 
   if (commandName === 'ranking') {
     const ranking = getRanking();
     let msg = '**📊 Ranking użytkowników:**\n';
     for (let [id, data] of ranking) {
-      const user = await client.users.fetch(id);
-      msg += `**${user.username}** — ➕ ${data.plusy} / ➖ ${data.minusy}\n`;
+      try {
+        const user = await client.users.fetch(id);
+        msg += `**${user.username}** — ➕ ${data.plusy} / ➖ ${data.minusy}\n`;
+      } catch {
+        msg += `**Nieznany użytkownik** — ➕ ${data.plusy} / ➖ ${data.minusy}\n`;
+      }
     }
     await interaction.reply(msg);
   }
